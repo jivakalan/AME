@@ -53,8 +53,8 @@ for name in column_names:
 ##visual audit of columns###
 ############################
 
-##bar charts
-    ###fix labels!!!!!! 
+##countplots
+    ###TO DO - fix labels
 fig,ax=plt.subplots(4,2,figsize=(15,15))
 sns.countplot(x=train_set["workclass"],ax=ax[0,0])
 sns.countplot(x=train_set["education"], ax=ax[0,1])

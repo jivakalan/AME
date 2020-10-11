@@ -68,11 +68,16 @@ for name in column_names:
  
 #cols_to_filter =["age","education_num","capital_gain","hrs_per_week","fnlwgt","capital_loss"]
 
+
+
+######################
+## Helper functions ##
+######################
+    
 #function to cap extreme values 
 def extreme_cap(df, num_std_dev):
     df_capped = df
     for col in descr_table:
-       # v = st.stdev(df[col])*num_std_dev
         v = descr_table[col]["std"]*num_std_dev
         hi = descr_table[col]["mean"]+v
         lo = descr_table[col]["mean"]-v
@@ -81,17 +86,28 @@ def extreme_cap(df, num_std_dev):
     return df_capped
 
 
+def model_evaluate(predictions):
+    print('AUC:', round(roc_auc_score(y_true=test_target
+                                     ,y_score=predictions)*100
+                        ,2))
+    print('Precision:', round(precision_score(y_true=test_target
+                                            , y_pred= predictions
+                                            , average='weighted')*100
+                            ,2))
 
-#cap values in train set
-train_set = extreme_cap(train_set, 1.5)
-##cap extreme values on test set 
-test_set = extreme_cap(test_set, 1.5)
 
 
 
 #####################
 ## Pre-processing ##
 ####################
+
+##run this if want to cap values
+#cap values in train set
+train_set = extreme_cap(train_set, 1.5)
+##cap extreme values on test set 
+test_set = extreme_cap(test_set, 1.5)
+
 
 #convert income to binary output
 train_set["income"] = train_set["income"].apply(lambda x: 0 if x==' <=50K' else 1)
@@ -132,23 +148,20 @@ train_features = train_features.reindex(sorted(train_features.columns), axis=1)
 ## Model 1: XGBoost ##
 ######################
 
-model = xgb.XGBClassifier( objective= 'binary:logistic'
+xgb_model = xgb.XGBClassifier( objective= 'binary:logistic'
                          , colsample_bytree= 0.3
                          , learning_Rate =.1
                          , max_depth=10
                          , verbosity =0
                          )
-model.fit(train_features, train_target)
-preds =model.predict(test_features)
-
+xgb_model.fit(train_features, train_target)
 
 #######################
 ## XGB Performance   ##
 #######################
 
-xgb_roc = roc_auc_score(y_true=test_target, y_score=preds)
-print('AUC:', round(xgb_roc*100,2))
-
+xgb_preds =xgb_model.predict(test_features)
+model_evaluate(xgb_preds)
 
 
 ############################
@@ -158,21 +171,23 @@ print('AUC:', round(xgb_roc*100,2))
 model_rf = RandomForestClassifier(n_estimators= 100 ##num trees
                                  , max_depth=10     ##num levels in forest
                                  , random_state=0   
-                                 , min_samples_splitint =2  #min num samples to split on
+                                 , min_samples_split =2  #min num samples to split on
                                  , min_samples_leaf = 2    #min samples at each node
                                  )
 
 model_rf.fit(train_features, train_target)
 
+
+###############################
+## Randomforest Performance ##
+##############################
+
 rf_preds = model_rf.predict(test_features)
+model_evaluate(rf_preds)
 
-roc = roc_auc_score(y_true=test_target, y_score=rf_preds)
-print('AUC:', round(roc*100,2))
-precision_score(y_true=test_target, y_pred= rf_preds, average='weighted')
-
-#############################
-##  Hyperparameter Tuning ##
-############################
+#########################################
+##  Randomforest Hyperparameter Tuning ##
+#########################################
 
 
 grid = { 'n_estimators': list(range(75,300, 25))
@@ -200,4 +215,76 @@ best_preds = best_model.predict(test_features)
 
 best_roc = roc_auc_score(y_true=test_target, y_score=best_preds)
 print('Tuned AUC:', round(best_roc*100,2))
-print('Initial AUC:', round(roc*100,2))
+
+
+##############################
+## Model 2 - Neural Network ##
+##############################
+
+from keras.models import Sequential
+from keras.layers import Dense
+
+model_nn = Sequential()
+model_nn.add(Dense(12, input_dim=105, activation='relu'))
+model_nn.add(Dense(8, activation='relu'))
+model_nn.add(Dense(1, activation='sigmoid'))
+
+model_nn.compile(loss='binary_crossentropy',optimizer='adam',metrics=['accuracy'])
+
+model_nn.fit(train_features, train_target, epochs = 200, batch_size = 100)
+
+nn_preds = model_nn.predict(test_features)
+nn_preds = [round(x[0]) for x in nn_preds]
+model_evaluate(nn_preds)
+# =============================================================================
+# 
+# Explain the places that may have been the most challenging for you.
+# Find clear insights on the profiles of the people that make more than
+# $50,000 / year. For example, which variables seem to be the most correlated
+# with this phenomenon?
+# =============================================================================
+
+
+# Challenges
+## ###############################################################################
+## Striking the balance between meeting the parameters of the exercise versus 
+## wanting to showcase everything I can do, and being able to do all that in the 
+## time alotted.  
+###############################################################################
+
+
+##variable importance plot 
+var_imp = model_rf.feature_importances_
+feature_names = pd.DataFrame(train_features.columns)
+var_imp_pd = pd.DataFrame(var_imp)
+
+var_imp_merge = pd.concat([var_imp_pd,feature_names],axis=1)
+var_imp_merge.columns =['Importance','Feature']
+var_imp_merge=var_imp_merge.sort_values(by='Importance', ascending=False)
+
+
+var_plot = var_imp_merge.head(10)
+
+var_plot.plot.bar(x='Feature',y='Importance')
+
+#################################################################################
+
+# The variable importance plot is a quick way to understand which variables 
+# contribute the most to the accurate prediction of someone making more or less 
+# than $50k/yr
+
+# We see that marital status, capital gain/loss, the amount of aducation, and 
+# hours worked all factor into this calculation. Intuitivly it makes sense,
+# the older you are, the higher the chances of being further in your career and 
+# therefore earning more. 
+
+# Likewise, professional careers tend to earn more, which is would intuitively make 
+# sense as a good predictor of income > 50k
+
+# Interestingly there are some potentially correlated variables - marital status 
+# vs relationship-husband for example
+# It would make sense to prune some of these out as well as rerunning the analysis for 
+# variables past a certain cutoff
+# 
+
+# =============================================================================
