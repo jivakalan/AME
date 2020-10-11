@@ -34,7 +34,13 @@ test_set = pd.read_csv('adult-test.csv',skiprows=1,names = column_names)
 
 ##missing values --appear to be none
 train_set.info()
+test_set.info()
+##remove whitespaces
+train_set.replace(' ?',np.nan,inplace=True)
+test_set.replace(' ?',np.nan,inplace=True)
+
 descr_table = train_set.describe()
+a= test_set.describe()
 ##counts
 for name in column_names:
     print(train_set[name].value_counts())
@@ -80,8 +86,6 @@ train_set.boxplot("hrs_per_week",ax=ax[1,0])
 
 cols_to_filter =["age","education_num","capital_gain","hrs_per_week","fnlwgt","capital_loss"]
 
-
-
 #function to cap extreme values 
 def extreme_cap(df, num_std_dev):
     df_capped = df
@@ -94,11 +98,13 @@ def extreme_cap(df, num_std_dev):
         df_capped[col]=df_capped[col].apply(lambda x: lo if x < lo else x)
     return df_capped
 
+
+
 #cap values in train set
-train_set_capped = extreme_cap(train_set, 1.5)
+train_set = extreme_cap(train_set, 1.5)
 
 ##cap extreme values on test set 
-test_set_capped = extreme_cap(test_set, 1.5)
+test_set = extreme_cap(test_set, 1.5)
 
 # =============================================================================
 # 
@@ -128,32 +134,44 @@ from sklearn.preprocessing import OneHotEncoder
 
 #convert income to binary output
 train_set["income"] = train_set["income"].apply(lambda x: 0 if x==' <=50K' else 1)
-#one-hot encoding for categorical variables
-
-# creating initial dataframe
-bridge_types = ('Arch','Beam','Truss','Cantilever','Tied Arch','Suspension','Cable')
-bridge_df = pd.DataFrame(bridge_types, columns=['Bridge_Types'])
-# generate binary values using get_dummies
-dum_df = pd.get_dummies(bridge_df, columns=["Bridge_Types"], prefix=["Type_is"] )
-# merge with main df bridge_df on key values
-bridge_df = bridge_df.join(dum_df)
-bridge_df
-
-
-
+test_set["income"] = test_set["income"].apply(lambda x: 0 if x==' <=50K.' else 1)
 
 
 #split target from features
 train_features, train_target = train_set.iloc[:,:-1], train_set.iloc[:,-1]
 test_features, test_target = test_set.iloc[:,:-1], test_set.iloc[:,-1]
 
+#one-hot encoding for categorical variables
+col_cat =["workclass","education","marital_status","occupation","relationship","race","sex","native_country"] 
+
+for name in col_cat:
+    name_df = pd.DataFrame( train_features[name])
+    dum_df  = pd.get_dummies(name_df, prefix=[name+'_'] )
+    train_features = train_features.join(dum_df)
+    
+train_features.drop(col_cat, axis='columns',inplace=True)
+ 
+
+##one-hot-encod test features
+for name in col_cat:
+    name_df = pd.DataFrame(test_features[name])
+    dum_df  = pd.get_dummies(name_df, prefix=[name+'_'] )
+    test_features = test_features.join(dum_df)
+    
+test_features.drop(col_cat, axis='columns',inplace=True)
+
+##add column native_country__ Holand-Netherlands
+test_features["native_country__ Holand-Netherlands"]=0
+
+test_features = test_features.reindex(sorted(test_features.columns), axis=1)
+train_features = train_features.reindex(sorted(train_features.columns), axis=1)
 
 
-############
-## Model ##
-###########
+######################
+## Model 1: XGBoost ##
+######################
 
-model = xgb.XGBClassifier( objective='binary: logistic'
+model = xgb.XGBClassifier( objective= 'binary:logistic'
                          , colsample_bytree= 0.3
                          , learning_Rate =.1
                          , max_depth=3  
@@ -165,15 +183,58 @@ preds =model.predict(test_features)
 
 
 #######################
-## Model Performance ##
+## XGB Performance   ##
 #######################
 
 roc = roc_auc_score(y_true=test_target, y_score=preds)
-print('AUC:', roc)
+print('AUC:', round(roc*100,2))
 
-#######################
-## Model Tuning ##
-#######################
+#################
+## XGB Tuning ##
+################
 
 ##grid search to tune hyperparameters
+
+
+
+
+#############################
+## Model 2: Neural Network ##
+#############################
+
+from keras import Sequential
+from keras.layers import Dense
+
+model = Sequential()
+model.add(Dense(12, input_dim=105, activation='relu'))
+model.add(Dense(8, activation='relu'))
+model.add(Dense(1, activation='sigmoid'))
+
+print(model)
+model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
+
+model.fit(train_features, train_target, epochs=25, batch_size=10)
+
+
+nn_preds = model.predict(test_features)
+rounded = [round(x[0]) for x in nn_preds]
+
+#######################
+## NN Performance   ##
+#######################
+
+_, accuracy = model.evaluate(X, y)
+print('Accuracy: %.2f' % (accuracy*100))
+
+
+roc = roc_auc_score(y_true=test_target, y_score=rounded)
+print('AUC:', round(roc*100,2))
+
+
+#################
+## NN Tuning ##
+################
+
+##grid search to tune hyperparameters
+
 
