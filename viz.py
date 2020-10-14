@@ -32,7 +32,7 @@ test_set = pd.read_csv('adult-test.csv',skiprows=1,names = column_names)
 # 
 # =============================================================================
 
-##missing values --appear to be none
+##missing values --appear to be none but there are '?' values 
 train_set.info()
 test_set.info()
 ##remove whitespaces
@@ -48,22 +48,54 @@ for name in column_names:
 for name in column_names:
     print(name, train_set[name].unique())
  
+#convert income to binary output
+train_set["income"] = train_set["income"].apply(lambda x: 0 if x==' <=50K' else 1)
+test_set["income"] = test_set["income"].apply(lambda x: 0 if x==' <=50K.' else 1)
+
     
+sum(train_set['income']) 
+sum(test_set['income']) 
+# TRAIN
+#>50k -- 7841/32561  24%
+# <50k --            76%
+train_set.duplicated(subset=None, keep='first').value_counts()
+# 24 duplicates
+
+# TEST
+#>50k -- 3846/16281  23.6%
+# <50k --            76.4%
+test_set.duplicated(subset=None, keep='first').value_counts()
+# 5 duplicates
+
 #############################
 ##visual audit of columns###
 ############################
 
 ##countplots
-    ###TO DO - fix labels
-fig,ax=plt.subplots(4,2,figsize=(15,15))
-sns.countplot(x=train_set["workclass"],ax=ax[0,0])
-sns.countplot(x=train_set["education"], ax=ax[0,1])
-sns.countplot(x=train_set["marital_status"], ax=ax[1,0])
+fig,ax=plt.subplots(4,2,figsize=(20,30))
+a= sns.countplot(x=train_set["workclass"],ax=ax[0,0])
+a.set_xticklabels(a.get_xticklabels(), rotation=45, horizontalalignment='right')
+b= sns.countplot(x=train_set["education"], ax=ax[0,1])
+b.set_xticklabels(b.get_xticklabels(), rotation=45, horizontalalignment='right')
+c= sns.countplot(x=train_set["marital_status"], ax=ax[1,0])
+c.set_xticklabels(c.get_xticklabels(), rotation=45, horizontalalignment='right')
 sns.countplot(x=train_set["relationship"],ax=ax[1,1])
 sns.countplot(x=train_set["sex"], ax=ax[2,0])
-sns.countplot(x=train_set["occupation"], ax=ax[3,0])
-sns.countplot(x=train_set["race"], ax=ax[3,1])
+d= sns.countplot(x=train_set["occupation"], ax=ax[3,0])
+d.set_xticklabels(d.get_xticklabels(), rotation=45, horizontalalignment='right')
+e= sns.countplot(x=train_set["race"], ax=ax[3,1])
+e.set_xticklabels(e.get_xticklabels(), rotation=45, horizontalalignment='right')
 fig.show()
+
+# Which class in the above variables have the highest representation
+# workclass: private
+# education: bachelors, HS grad, some-college
+# marital status: never-married; married-civ-spouse, divorced
+# relationship: not-in-famil;husband;own-child
+# sex: male
+# occupation: fairly even, minimal armed forces (only 9)
+# race : white
+############################
 
 ##histograms
 fig,ax=plt.subplots(2,3,figsize=(15,5))
@@ -73,6 +105,11 @@ train_set.hist("capital_gain", ax=ax[0,2])
 train_set.hist("hrs_per_week", ax=ax[1,0])
 train_set.hist("fnlwgt", ax=ax[1,1])
 train_set.hist("capital_loss", ax=ax[1,2])
+
+# age: skews young
+# fnlwgt : not sure what this represents: supposedly it is some kind of estimate of
+#         population total but when a straight sum of this column is >6Billion
+
 
 #visualize extreme values
 fig,ax=plt.subplots(2,3,figsize=(15,5))

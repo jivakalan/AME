@@ -38,7 +38,7 @@ from sklearn.metrics import precision_score
 
 
 # =============================================================================
-# retrieved data and column info from:
+# retrieved dataset from kaggle and column info from:
 # https://archive.ics.uci.edu/ml/datasets/census+income
 # =============================================================================
 
@@ -55,6 +55,10 @@ test_set.info()
 train_set.replace(' ?',np.nan,inplace=True)
 test_set.replace(' ?',np.nan,inplace=True)
 
+#remove dupes
+train_set= train_set.drop_duplicates()
+test_set = test_set.drop_duplicates()
+
 ##descr table will have std dev and mean values for use in extreme_cap fn 
 descr_table = train_set.describe()
 a= test_set.describe()
@@ -67,7 +71,6 @@ for name in column_names:
     print(name, train_set[name].unique())
  
 #cols_to_filter =["age","education_num","capital_gain","hrs_per_week","fnlwgt","capital_loss"]
-
 
 
 ######################
@@ -231,7 +234,7 @@ model_nn.add(Dense(1, activation='sigmoid'))
 
 model_nn.compile(loss='binary_crossentropy',optimizer='adam',metrics=['accuracy'])
 
-model_nn.fit(train_features, train_target, epochs = 200, batch_size = 100)
+model_nn.fit(train_features, train_target, epochs = 50, batch_size = 100)
 
 nn_preds = model_nn.predict(test_features)
 nn_preds = [round(x[0]) for x in nn_preds]
